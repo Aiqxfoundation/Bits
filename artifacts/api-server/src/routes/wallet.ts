@@ -188,14 +188,16 @@ router.post(
           eq(walletTransactionsTable.idempotencyKey, parsed.data.idempotencyKey),
         ))
         .limit(1);
-      if (duplicate) return { transaction: duplicate };
-      if (
-        duplicate.type !== "withdrawal"
-        || duplicate.assetSymbol !== assetSymbol
-        || amountNumber(duplicate.amount) !== -amount
-        || duplicate.walletAddress !== parsed.data.walletAddress.trim()
-      ) {
-        return { error: "This idempotency key was already used for a different request" };
+      if (duplicate) {
+        if (
+          duplicate.type !== "withdrawal"
+          || duplicate.assetSymbol !== assetSymbol
+          || amountNumber(duplicate.amount) !== -amount
+          || duplicate.walletAddress !== parsed.data.walletAddress.trim()
+        ) {
+          return { error: "This idempotency key was already used for a different request" };
+        }
+        return { transaction: duplicate };
       }
 
       await tx

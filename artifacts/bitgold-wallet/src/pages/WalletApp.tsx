@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
-import { useClerk, useUser } from '@clerk/react';
+import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowDownLeft, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, BarChart3, Check, ChevronRight, Copy,
-  Eye, EyeOff, Gift, KeyRound, LogOut, Pickaxe, Settings2, ShieldCheck, Share2, TrendingUp, Users, Wallet as WalletIcon, Zap,
+  ArrowDownLeft, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, Check, ChevronRight, Copy,
+  Eye, EyeOff, FileClock, Fingerprint, Gift, KeyRound, LayoutDashboard, LogOut, Pickaxe, Settings2, ShieldCheck, Share2, TrendingUp, Users, Wallet as WalletIcon, Zap,
 } from 'lucide-react';
 import {
   getGetAccountQueryKey, getGetDashboardQueryKey, getGetPlatformStatsQueryKey, getGetTeamQueryKey, getGetWalletQueryKey,
@@ -15,13 +15,22 @@ import {
 import type { WalletAsset, WalletTransaction } from '@workspace/api-client-react';
 import { Brand, EmptyPanel, ErrorPanel, InlineNotice, LoadingPanel, Modal, PageHeading, apiErrorMessage, formatAmount, formatDate } from '@/components/common';
 
+const adminNav = [
+  { href: '/app/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/app/admin/users', label: 'Users', icon: Users },
+  { href: '/app/admin/deposits', label: 'Deposits', icon: ArrowDownToLine },
+  { href: '/app/admin/withdrawals', label: 'Withdrawals', icon: ArrowUpFromLine },
+  { href: '/app/admin/risk', label: 'IP review', icon: Fingerprint },
+  { href: '/app/admin/audit', label: 'Audit log', icon: FileClock },
+];
+
 function AccountInitial({ name }: { name: string }) {
   return <span className="account-initial">{name.slice(0, 1).toUpperCase()}</span>;
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
   const accountQuery = useGetAccount({ query: { queryKey: getGetAccountQueryKey(), staleTime: 20_000 } });
   const account = accountQuery.data;
   const admin = account?.role === 'admin';
@@ -33,8 +42,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   ];
 
   if (accountQuery.isLoading) return <div className="app-frame"><div className="topbar"><Brand /><span className="skeleton" style={{ width: 100, height: 16 }} /></div><main className="app-main"><LoadingPanel /></main></div>;
-  if (accountQuery.isError || !account) return <div className="app-frame"><div className="topbar"><Link href="/app" className="brand-link"><Brand size={30} /><strong>Bitgold</strong></Link></div><main className="app-main"><ErrorPanel message="Your account details could not be retrieved. The app does not keep a local copy of account or balance data." onRetry={() => accountQuery.refetch()} /><div style={{ marginTop: 16 }}><button className="button" onClick={() => signOut({ redirectUrl: '/' })}><LogOut size={15} /> Sign out</button></div></main></div>;
-  if (account.status === 'banned') return <div className="app-frame"><div className="topbar"><Link href="/" className="brand-link"><Brand size={30} /><strong>Bitgold</strong></Link></div><main className="app-main"><section className="panel suspended-panel"><ShieldCheck size={28} /><div className="eyebrow">ACCOUNT STATUS</div><h1>Access is restricted.</h1><p className="muted">This account is currently restricted. If you believe this is a mistake, contact Bitgold support for a review.</p><button className="button" onClick={() => signOut({ redirectUrl: '/' })}><LogOut size={15} /> Sign out</button></section></main></div>;
+  if (accountQuery.isError || !account) return <div className="app-frame"><div className="topbar"><Link href="/app" className="brand-link"><Brand size={30} /><strong>Bitgold</strong></Link></div><main className="app-main"><ErrorPanel message="Your account details could not be retrieved. The app does not keep a local copy of account or balance data." onRetry={() => accountQuery.refetch()} /><div style={{ marginTop: 16 }}><button className="button" onClick={() => { void signOut(); }}><LogOut size={15} /> Sign out</button></div></main></div>;
+  if (account.status === 'banned') return <div className="app-frame"><div className="topbar"><Link href="/" className="brand-link"><Brand size={30} /><strong>Bitgold</strong></Link></div><main className="app-main"><section className="panel suspended-panel"><ShieldCheck size={28} /><div className="eyebrow">ACCOUNT STATUS</div><h1>Access is restricted.</h1><p className="muted">This account is currently restricted. If you believe this is a mistake, contact Bitgold support for a review.</p><button className="button" onClick={() => { void signOut(); }}><LogOut size={15} /> Sign out</button></section></main></div>;
 
   return <div className="app-frame">
     <aside className="desktop-sidebar">
@@ -42,8 +51,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="sidebar-user"><AccountInitial name={account.displayName || account.username} /><div><strong>{account.displayName || account.username}</strong><span>{admin ? 'Administrator' : 'Member'}</span></div></div>
       <div className="eyebrow sidebar-label">YOUR ACCOUNT</div>
       {nav.map((item) => <Link key={item.href} href={item.href} className={`sidebar-link ${location === item.href || (item.href === '/app/wallet' && location.startsWith('/app/wallet/')) ? 'active' : ''}`} data-testid={`link-sidebar-${item.label.toLowerCase()}`}><item.icon size={17} />{item.label}</Link>)}
-      {admin && <><div className="eyebrow sidebar-label">OPERATIONS</div><Link href="/app/admin" className={`sidebar-link ${location.startsWith('/app/admin') ? 'active' : ''}`} data-testid="link-admin"><BarChart3 size={17} />Admin area</Link></>}
-      <div className="sidebar-bottom"><Link href="/privacy" className="sidebar-link"><ShieldCheck size={16} />Privacy & security</Link><button className="sidebar-link" onClick={() => signOut({ redirectUrl: '/' })}><LogOut size={16} />Sign out</button></div>
+      {admin && <>
+        <div className="eyebrow sidebar-label">ADMIN CONSOLE</div>
+        {adminNav.map((item) => <Link key={item.href} href={item.href} className={`sidebar-link ${location === item.href ? 'active' : ''}`} data-testid={`link-admin-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><item.icon size={17} />{item.label}</Link>)}
+      </>}
+      <div className="sidebar-bottom"><Link href="/privacy" className="sidebar-link"><ShieldCheck size={16} />Privacy & security</Link><button className="sidebar-link" onClick={() => { void signOut(); }}><LogOut size={16} />Sign out</button></div>
     </aside>
     <header className="topbar">
       <Link href="/app" className="brand-link mobile-brand"><Brand size={29} /><strong>Bitgold</strong></Link>
@@ -53,8 +65,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </div>
     </header>
     <main className="app-main">{children}</main>
-    <nav className="bottom-nav">
+    <nav className={`bottom-nav ${admin ? 'admin-mode' : ''}`}>
       {nav.map((item) => <Link key={item.href} href={item.href} className={`nav-item ${location === item.href || (item.href === '/app/wallet' && location.startsWith('/app/wallet/')) ? 'active' : ''}`} data-testid={`link-mobile-${item.label.toLowerCase()}`}><item.icon size={19} /><span>{item.label}</span></Link>)}
+      {admin && <Link href="/app/admin" className={`nav-item ${location.startsWith('/app/admin') ? 'active' : ''}`} data-testid="link-mobile-admin"><ShieldCheck size={19} /><span>Admin</span></Link>}
     </nav>
   </div>;
 }
@@ -270,8 +283,7 @@ export function ProfilePage() {
       ]);
     } },
   });
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { signOut, rotateAccountKey } = useAuth();
   const account = accountQuery.data;
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState('');
@@ -301,8 +313,8 @@ export function ProfilePage() {
     setKeyBusy(true);
     const generated = makeAccountKey();
     try {
-      await user?.updatePassword({ currentPassword: currentKey, newPassword: generated, signOutOfOtherSessions: true });
-      setShowNewKey(generated);
+      const rotated = await rotateAccountKey({ currentKey, newKey: generated });
+      setShowNewKey(rotated.accountKey);
       setCurrentKey('');
       setNewKey('');
     } catch (error) {
@@ -320,12 +332,12 @@ export function ProfilePage() {
     <section className="settings-panel panel"><div className="settings-title"><div><Settings2 size={17} /><h2>Profile information</h2></div>{!editing && <button className="text-button" onClick={edit} data-testid="button-edit-profile">Edit details</button>}</div>
       {editing ? <form className="modal-form" onSubmit={save}>{profileError && <InlineNotice tone="danger">{profileError}</InlineNotice>}<label className="field-label" htmlFor="display-name">Display name</label><input className="field" id="display-name" maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} data-testid="input-display-name" /><label className="field-label" htmlFor="country">Country</label><input className="field" id="country" maxLength={80} value={country} onChange={(event) => setCountry(event.target.value)} placeholder="Country" data-testid="input-country" /><div className="modal-actions"><button type="button" className="button" onClick={() => setEditing(false)}>Cancel</button><button className="button gold" type="submit" disabled={updateProfile.isPending} data-testid="button-save-profile">{updateProfile.isPending ? 'Saving…' : 'Save changes'}</button></div></form> : <div className="settings-values"><div><span>Username</span><strong>{account.username}</strong></div><div><span>Display name</span><strong>{account.displayName || 'Not set'}</strong></div><div><span>Country</span><strong>{account.country || 'Not set'}</strong></div><div><span>Account role</span><strong>{account.role}</strong></div></div>}
     </section>
-    <section className="settings-panel panel"><div className="settings-title"><div><KeyRound size={17} /><h2>Account key</h2></div><span className="status active">Clerk secured</span></div><p className="muted">Your key is your password credential. Generate a replacement here. The new key appears once and is not sent to the Bitgold API.</p>
+    <section className="settings-panel panel"><div className="settings-title"><div><KeyRound size={17} /><h2>Account key</h2></div><span className="status active">Salted hash</span></div><p className="muted">Your key is your password credential. Generate a replacement here. The new key appears once and the server keeps only its salted hash.</p>
       {showNewKey ? <div className="key-rotation-success"><InlineNotice tone="success">Key rotated. Save the new key now; it will not appear again after you leave this screen.</InlineNotice><div className="key-reveal"><code>{showNewKey}</code><button className="icon-button" onClick={copyNewKey} aria-label="Copy new key" data-testid="button-copy-rotated-key">{keyCopied ? <Check size={17} /> : <Copy size={17} />}</button></div><button className="button" onClick={() => setShowNewKey('')} data-testid="button-dismiss-rotated-key">I saved my key</button></div> : <form className="key-rotation-form" onSubmit={rotateKey}>{keyError && <InlineNotice tone="danger">{keyError}</InlineNotice>}<label className="field-label" htmlFor="current-account-key">Current account key</label><input className="field mono" type="password" required value={currentKey} onChange={(event) => setCurrentKey(event.target.value)} id="current-account-key" data-testid="input-current-account-key" /><label className="field-label" htmlFor="new-account-key">Replacement key</label><div className="generated-key-field"><input className="field mono" type="password" readOnly value={newKey} placeholder="Generated during rotation" id="new-account-key" data-testid="input-new-account-key" /><button className="button" type="button" onClick={() => setNewKey(makeAccountKey())} data-testid="button-generate-new-key">Generate key</button></div><button className="button gold" type="submit" disabled={keyBusy || !currentKey || !newKey} data-testid="button-rotate-account-key">{keyBusy ? 'Rotating…' : 'Rotate account key'}</button></form>}
       <InlineNotice tone="gold">The service uses a single-active-device rule. A new-device sign-in requires explicit confirmation to switch.</InlineNotice>
     </section>
     <section className="privacy-link-card panel"><ShieldCheck size={18} /><div><strong>Privacy and device access</strong><p>Review how public IP addresses and sessions are handled.</p></div><Link href="/privacy" className="inline-link">Read notice <ArrowRight size={14} /></Link></section>
-    <button className="button signout-button" onClick={() => signOut({ redirectUrl: '/' })} data-testid="button-signout"><LogOut size={16} />Sign out of Bitgold</button>
+    <button className="button signout-button" onClick={() => { void signOut(); }} data-testid="button-signout"><LogOut size={16} />Sign out of Bitgold</button>
     <div className="profile-version"><Brand size={19} /> Bitgold Network · BTG</div>
   </div>;
 }

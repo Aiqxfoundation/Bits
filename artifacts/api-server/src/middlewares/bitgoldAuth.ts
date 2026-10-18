@@ -1,43 +1,56 @@
-import { getAuth } from "@clerk/express";
 import type { RequestHandler } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable, type User } from "@workspace/db";
+import { db, sessionsTable, usersTable, type Session, type User } from "@workspace/db";
+import { hashSessionToken } from "../lib/auth";
 
-export const requireSignedIn: RequestHandler = (req, res, next) => {
-  const auth = getAuth(req);
-  if (!auth.userId || !auth.sessionId) {
+export function bearerToken(header: string | undefined): string | null {
+  if (!header) return null;
+  const [scheme, ...rest] = header.trim().split(/\s+/);
+  if (scheme?.toLowerCase() !== "bearer") return null;
+  const token = rest.join("").trim();
+  return token || null;
+}
+
+/**
+ * Resolves the bearer session token to an account. A pending session (a sign-in
+ * waiting for an explicit device switch) is signed in, but not yet active.
+ */
+export const requireSignedIn: RequestHandler = async (req, res, next) => {
+  const token = bearerToken(req.header("authorization"));
+  if (!token) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
 
-  res.locals.clerkUserId = auth.userId;
-  res.locals.clerkSessionId = auth.sessionId;
+  const [row] = await db
+    .select({ session: sessionsTable, user: usersTable })
+    .from(sessionsTable)
+    .innerJoin(usersTable, eq(sessionsTable.userId, usersTable.id))
+    .where(eq(sessionsTable.tokenHash, hashSessionToken(token)))
+    .limit(1);
+
+  if (!row) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  res.locals.session = row.session satisfies Session;
+  res.locals.account = row.user satisfies User;
   next();
 };
 
-export const requireActiveAccount: RequestHandler = async (_req, res, next) => {
-  const clerkUserId = res.locals.clerkUserId as string | undefined;
-  const clerkSessionId = res.locals.clerkSessionId as string | undefined;
-  if (!clerkUserId || !clerkSessionId) {
+export const requireActiveAccount: RequestHandler = (_req, res, next) => {
+  const user = res.locals.account as User | undefined;
+  const session = res.locals.session as Session | undefined;
+  if (!user || !session) {
     res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkUserId, clerkUserId))
-    .limit(1);
-
-  if (!user) {
-    res.status(409).json({ error: "Account setup is incomplete" });
     return;
   }
   if (user.status === "banned") {
     res.status(403).json({ error: "This account is suspended" });
     return;
   }
-  if (user.activeSessionId && user.activeSessionId !== clerkSessionId) {
+  if (session.status !== "active") {
     res.status(409).json({
       error: "This account is active on another device",
       code: "DEVICE_SESSION_MISMATCH",
@@ -45,7 +58,11 @@ export const requireActiveAccount: RequestHandler = async (_req, res, next) => {
     return;
   }
 
-  res.locals.account = user satisfies User;
+  void db
+    .update(sessionsTable)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(sessionsTable.id, session.id))
+    .catch(() => undefined);
   next();
 };
 

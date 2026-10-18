@@ -29,15 +29,33 @@ export function newReferralCode(): string {
   return code;
 }
 
-export function observedPublicIp(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    const address = ipaddr.parse(value.trim());
-    if (address.range() !== "unicast") return null;
-    return address.toString();
-  } catch {
-    return null;
+/**
+ * Public client address for this request, or null when none can be established.
+ *
+ * Candidates are the `X-Forwarded-For` header (which lists the client first and
+ * each proxy after it) and the socket address. Private, loopback, link-local,
+ * carrier-grade NAT and documentation ranges are never stored: only a public
+ * (globally routable) address is returned.
+ */
+export function observedPublicIp(
+  ...candidates: Array<string | string[] | undefined | null>
+): string | null {
+  for (const candidate of candidates) {
+    const entries = (Array.isArray(candidate) ? candidate : [candidate]).flatMap(
+      (entry) => (entry ? String(entry).split(",") : []),
+    );
+    for (const entry of entries) {
+      const value = entry.trim();
+      if (!value) continue;
+      try {
+        const address = ipaddr.parse(value);
+        if (address.range() === "unicast") return address.toString();
+      } catch {
+        // Not an address: keep looking through the remaining entries.
+      }
+    }
   }
+  return null;
 }
 
 export function accountDto(user: User, availableBalance: string | number, pendingBalance: string | number) {

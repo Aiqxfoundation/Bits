@@ -1,4 +1,3 @@
-import { clerkClient } from "@clerk/express";
 import { db, ledgerEntriesTable, usersTable, walletBalancesTable, walletTransactionsTable } from "@workspace/db";
 import {
   ClaimMiningResponse,
@@ -6,19 +5,15 @@ import {
   GetDashboardResponse,
   GetPlatformStatsResponse,
   GetTeamResponse,
-  InitializeAccountBody,
-  InitializeAccountResponse,
   UpdateProfileBody,
   UpdateProfileResponse,
-  SwitchAccountDeviceResponse,
 } from "@workspace/api-zod";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   BASE_HASH_POWER,
   BASE_REWARD,
   COOLDOWN_HOURS,
-  INITIAL_SUPPLY,
   L1_RATE,
   L2_RATE,
   MAX_STREAK_BONUS_DAYS,
@@ -27,12 +22,8 @@ import {
   STREAK_RESET_HOURS,
   accountDto,
   amountNumber,
-  newReferralCode,
-  observedPublicIp,
   roundBtg,
   transactionDto,
-  writeAuditEvent,
-  writeLedgerEntry,
 } from "../lib/bitgold";
 import {
   requireActiveAccount,
@@ -52,136 +43,6 @@ async function accountWithBalance(userId: string) {
   return accountDto(user, balance?.availableBalance ?? "0", balance?.pendingBalance ?? "0");
 }
 
-router.post("/account/initialize", requireSignedIn, async (req, res): Promise<void> => {
-  const parsed = InitializeAccountBody.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const clerkUserId = res.locals.clerkUserId as string;
-  const clerkSessionId = res.locals.clerkSessionId as string;
-  const clerkUser = await clerkClient.users.getUser(clerkUserId);
-  const username = clerkUser.username?.trim();
-  if (!username) {
-    res.status(400).json({ error: "A username is required for this account" });
-    return;
-  }
-
-  const registrationIp = observedPublicIp(req.ip);
-  const payload = await db.transaction(async (tx) => {
-    // Serialize first-user assignment so only one concurrent signup can become admin.
-    await tx.execute(sql`select pg_advisory_xact_lock(684721059)`);
-    const [existing] = await tx
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.clerkUserId, clerkUserId))
-      .limit(1)
-      .for("update");
-
-    if (existing) {
-      if (existing.status === "banned") {
-        return { error: "This account is suspended", status: 403 as const };
-      }
-      if (existing.activeSessionId && existing.activeSessionId !== clerkSessionId) {
-        return {
-          error: "This account is active on another device",
-          code: "DEVICE_SESSION_MISMATCH",
-          status: 409 as const,
-        };
-      }
-      if (!existing.activeSessionId) {
-        await tx
-          .update(usersTable)
-          .set({ activeSessionId: clerkSessionId, updatedAt: new Date() })
-          .where(eq(usersTable.id, existing.id));
-      }
-      const result = await accountWithBalance(existing.id);
-      return { result, status: 200 as const };
-    }
-
-    let referralCode = newReferralCode();
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const [collision] = await tx
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.referralCode, referralCode))
-        .limit(1);
-      if (!collision) break;
-      referralCode = newReferralCode();
-    }
-
-    const [first] = await tx.select({ id: usersTable.id }).from(usersTable).limit(1);
-    const isInitialAdmin = !first;
-    let referrerId: string | null = null;
-    let secondLevelReferrerId: string | null = null;
-    const referral = parsed.data.referralCode?.trim().toUpperCase();
-    if (referral) {
-      const [referrer] = await tx
-        .select({
-          id: usersTable.id,
-          clerkUserId: usersTable.clerkUserId,
-          referrerId: usersTable.referrerId,
-        })
-        .from(usersTable)
-        .where(eq(usersTable.referralCode, referral))
-        .limit(1);
-      if (referrer && referrer.clerkUserId !== clerkUserId) {
-        referrerId = referrer.id;
-        secondLevelReferrerId = referrer.referrerId;
-      }
-    }
-
-    const [user] = await tx
-      .insert(usersTable)
-      .values({
-        clerkUserId,
-        username,
-        role: isInitialAdmin ? "admin" : "user",
-        isInitialAdmin,
-        displayName: username,
-        registrationIp,
-        activeSessionId: clerkSessionId,
-        referralCode,
-        referrerId,
-        secondLevelReferrerId,
-      })
-      .returning();
-
-    await tx.insert(walletBalancesTable).values({
-      userId: user.id,
-      assetSymbol: "BTG",
-      availableBalance: "0",
-      pendingBalance: "0",
-      reservedBalance: "0",
-    });
-    await tx.insert(walletBalancesTable).values(
-      ["BTC", "USDT"].map((assetSymbol) => ({
-        userId: user.id,
-        assetSymbol,
-        availableBalance: "0",
-        pendingBalance: "0",
-        reservedBalance: "0",
-      })),
-    );
-    const [balance] = await tx
-      .select()
-      .from(walletBalancesTable)
-      .where(and(eq(walletBalancesTable.userId, user.id), eq(walletBalancesTable.assetSymbol, "BTG")))
-      .limit(1);
-    return { result: accountDto(user, balance?.availableBalance ?? "0", balance?.pendingBalance ?? "0"), status: 200 as const };
-  });
-
-  if ("error" in payload) {
-    res.status(payload.status).json({ error: payload.error, code: payload.code });
-    return;
-  }
-  if (!payload.result) {
-    res.status(500).json({ error: "Unable to initialize account" });
-    return;
-  }
-  res.status(payload.status).json(InitializeAccountResponse.parse(payload.result));
-});
 
 router.get("/account", requireSignedIn, requireActiveAccount, async (_req, res): Promise<void> => {
   const user = res.locals.account;
@@ -193,37 +54,6 @@ router.get("/account", requireSignedIn, requireActiveAccount, async (_req, res):
   res.json(GetAccountResponse.parse(account));
 });
 
-router.post(
-  "/account/device/switch",
-  requireSignedIn,
-  async (_req, res): Promise<void> => {
-    const clerkUserId = res.locals.clerkUserId as string;
-    const clerkSessionId = res.locals.clerkSessionId as string;
-    const [user] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.clerkUserId, clerkUserId))
-      .limit(1);
-    if (!user) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-    if (user.status === "banned") {
-      res.status(403).json({ error: "This account is suspended" });
-      return;
-    }
-    await db
-      .update(usersTable)
-      .set({ activeSessionId: clerkSessionId, updatedAt: new Date() })
-      .where(eq(usersTable.id, user.id));
-    const account = await accountWithBalance(user.id);
-    if (!account) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-    res.json(SwitchAccountDeviceResponse.parse(account));
-  },
-);
 
 router.patch("/profile", requireSignedIn, requireActiveAccount, async (req, res): Promise<void> => {
   const parsed = UpdateProfileBody.safeParse(req.body);
