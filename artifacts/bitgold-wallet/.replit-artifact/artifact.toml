@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Bitgold Wallet"
+description = "A secure Bitgold account and wallet app with the existing mining, team, profile, and token experience, plus role-protected account administration and manually confirmed deposits and withdrawals."
+version = "1.0.0"
+id = "artifacts/bitgold-wallet"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25697
+
+[services.development]
+run = "pnpm --filter @workspace/bitgold-wallet run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bitgold-wallet", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/bitgold-wallet/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25697"
+BASE_PATH = "/"

@@ -1,0 +1,86 @@
+{
+  "name": "UserProfile",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "The auth user id this profile belongs to"
+    },
+    "email": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "balance": {
+      "type": "number",
+      "default": 0
+    },
+    "streak": {
+      "type": "number",
+      "default": 0
+    },
+    "last_claim_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "total_mined": {
+      "type": "number",
+      "default": 0
+    },
+    "total_referral_earnings": {
+      "type": "number",
+      "default": 0
+    },
+    "total_claims": {
+      "type": "number",
+      "default": 0
+    },
+    "hash_power": {
+      "type": "number",
+      "default": 100
+    },
+    "referral_code": {
+      "type": "string"
+    },
+    "referred_by_code": {
+      "type": "string"
+    },
+    "level1_referrer_id": {
+      "type": "string"
+    },
+    "level2_referrer_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "referral_code"
+  ],
+  "rls": {
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

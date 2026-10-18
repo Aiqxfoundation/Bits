@@ -1,0 +1,61 @@
+{
+  "name": "Transaction",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Auth user id this transaction belongs to"
+    },
+    "profile_id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "claim",
+        "referral_bonus_l1",
+        "referral_bonus_l2",
+        "withdrawal"
+      ]
+    },
+    "amount": {
+      "type": "number",
+      "description": "Positive for credits, negative for debits"
+    },
+    "description": {
+      "type": "string"
+    },
+    "related_user_id": {
+      "type": "string",
+      "description": "For referral bonuses, the user whose claim triggered it"
+    },
+    "withdrawal_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "type",
+    "amount"
+  ],
+  "rls": {
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

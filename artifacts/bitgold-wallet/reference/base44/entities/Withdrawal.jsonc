@@ -1,0 +1,64 @@
+{
+  "name": "Withdrawal",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "profile_id": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "wallet_address": {
+      "type": "string"
+    },
+    "network": {
+      "type": "string",
+      "default": "BTG Mainnet"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "completed",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "tx_hash": {
+      "type": "string"
+    },
+    "processed_date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_id",
+    "amount",
+    "wallet_address"
+  ],
+  "rls": {
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Bitgold account, wallet, mining, team, and administration API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: account
+    description: Signed-in account and profile
+  - name: wallet
+    description: Wallet balances and auditable transactions
+  - name: mining
+    description: Mining claims and platform statistics
+  - name: team
+    description: Referral network
+  - name: admin
+    description: Server-authorized administrative operations
 paths:
   /healthz:
     get:
@@ -24,6 +34,431 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /account/initialize:
+    post:
+      operationId: initializeAccount
+      tags: [account]
+      summary: Initialize the signed-in user's account
+      description: Creates the application account once; the first account is assigned the initial administrator role atomically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitializeAccountInput"
+      responses:
+        "200":
+          description: Existing or newly initialized account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          description: Authentication required
+        "409":
+          description: This account is active on another device
+  /account:
+    get:
+      operationId: getAccount
+      tags: [account]
+      summary: Get the signed-in user's account
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          description: Authentication required
+  /account/device/switch:
+    post:
+      operationId: switchAccountDevice
+      tags: [account]
+      summary: Move the account's active session to this device
+      responses:
+        "200":
+          description: Device switched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          description: Authentication required
+  /profile:
+    patch:
+      operationId: updateProfile
+      tags: [account]
+      summary: Update editable profile details
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [account]
+      summary: Get dashboard data
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /platform/stats:
+    get:
+      operationId: getPlatformStats
+      tags: [mining]
+      summary: Get public platform statistics
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+  /mining/claim:
+    post:
+      operationId: claimMining
+      tags: [mining]
+      summary: Claim the current mining reward
+      responses:
+        "200":
+          description: Claim accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiningClaim"
+        "409":
+          description: A claim is not currently available
+  /team:
+    get:
+      operationId: getTeam
+      tags: [team]
+      summary: Get referral team details
+      responses:
+        "200":
+          description: Referral team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+  /wallet:
+    get:
+      operationId: getWallet
+      tags: [wallet]
+      summary: Get wallet assets, balances, and recent ledger activity
+      responses:
+        "200":
+          description: Current wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+  /wallet/deposits:
+    post:
+      operationId: requestDeposit
+      tags: [wallet]
+      summary: Submit a deposit for manual confirmation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositInput"
+      responses:
+        "201":
+          description: Pending deposit request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransaction"
+  /wallet/withdrawals:
+    post:
+      operationId: requestWithdrawal
+      tags: [wallet]
+      summary: Submit a withdrawal request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawalInput"
+      responses:
+        "201":
+          description: Pending withdrawal request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransaction"
+        "409":
+          description: Duplicate request or insufficient available balance
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get administrative overview
+      responses:
+        "200":
+          description: Overview for an administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "403":
+          description: Administrator access required
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: Search and list accounts
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, active, banned]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Matching accounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPage"
+        "403":
+          description: Administrator access required
+  /admin/users/{userId}:
+    get:
+      operationId: getAdminUser
+      tags: [admin]
+      summary: Get account details and wallet history
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account details for an administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetail"
+        "403":
+          description: Administrator access required
+        "404":
+          description: Account not found
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Ban or unban an account
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "403":
+          description: Administrator access required
+        "409":
+          description: The initial administrator cannot be banned
+  /admin/deposits:
+    get:
+      operationId: getAdminDeposits
+      tags: [admin]
+      summary: List deposit requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, pending, confirmed, rejected]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Deposit requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionPage"
+        "403":
+          description: Administrator access required
+  /admin/deposits/{depositId}/decision:
+    post:
+      operationId: decideDeposit
+      tags: [admin]
+      summary: Confirm or reject a pending deposit exactly once
+      parameters:
+        - name: depositId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositDecision"
+      responses:
+        "200":
+          description: Updated deposit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransaction"
+        "403":
+          description: Administrator access required
+        "409":
+          description: Deposit has already been decided
+  /admin/withdrawals:
+    get:
+      operationId: getAdminWithdrawals
+      tags: [admin]
+      summary: List withdrawal requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, pending, approved, rejected]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Withdrawal requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionPage"
+        "403":
+          description: Administrator access required
+  /admin/withdrawals/{withdrawalId}/decision:
+    post:
+      operationId: decideWithdrawal
+      tags: [admin]
+      summary: Approve or reject a pending withdrawal exactly once
+      parameters:
+        - name: withdrawalId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawalDecision"
+      responses:
+        "200":
+          description: Updated withdrawal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransaction"
+        "403":
+          description: Administrator access required
+        "409":
+          description: Withdrawal has already been decided
+  /admin/ip-clusters:
+    get:
+      operationId: getAdminIpClusters
+      tags: [admin]
+      summary: Review public-IP account clusters
+      responses:
+        "200":
+          description: Admin-only shared-IP review signals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IpClusterPage"
+        "403":
+          description: Administrator access required
+  /admin/audit:
+    get:
+      operationId: getAdminAudit
+      tags: [admin]
+      summary: Review administrative and ledger audit events
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventPage"
+        "403":
+          description: Administrator access required
 components:
   schemas:
     HealthStatus:
@@ -33,4 +468,254 @@ components:
           type: string
       required:
         - status
+    InitializeAccountInput:
+      type: object
+      properties:
+        referralCode:
+          type: string
+          maxLength: 32
+      additionalProperties: false
+    ProfileUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 80
+        country:
+          type: string
+          maxLength: 80
+      additionalProperties: false
+    Account:
+      type: object
+      required: [id, username, role, status, balance, availableBalance, pendingBalance, hashPower, streak, totalMined, totalReferralEarnings, totalClaims, referralCode, isInitialAdmin]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        role: { type: string, enum: [admin, user] }
+        status: { type: string, enum: [active, banned] }
+        displayName: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        balance: { type: number }
+        availableBalance: { type: number }
+        pendingBalance: { type: number }
+        hashPower: { type: number }
+        streak: { type: integer }
+        lastClaimDate: { type: ["string", "null"], format: date-time }
+        totalMined: { type: number }
+        totalReferralEarnings: { type: number }
+        totalClaims: { type: integer }
+        referralCode: { type: string }
+        isInitialAdmin: { type: boolean }
+    Dashboard:
+      type: object
+      required: [account, stats, recentTransactions]
+      properties:
+        account: { $ref: "#/components/schemas/Account" }
+        stats: { $ref: "#/components/schemas/PlatformStats" }
+        recentTransactions:
+          type: array
+          items: { $ref: "#/components/schemas/WalletTransaction" }
+    PlatformStats:
+      type: object
+      required: [totalUsers, totalMined, activeMiners, totalClaims]
+      properties:
+        totalUsers: { type: integer }
+        totalMined: { type: number }
+        activeMiners: { type: integer }
+        totalClaims: { type: integer }
+    MiningClaim:
+      type: object
+      required: [amount, balance, nextClaimAt]
+      properties:
+        amount: { type: number }
+        balance: { type: number }
+        nextClaimAt: { type: string, format: date-time }
+    TeamMember:
+      type: object
+      required: [username, joinedAt, totalEarned]
+      properties:
+        username: { type: string }
+        joinedAt: { type: string, format: date-time }
+        totalEarned: { type: number }
+        level: { type: integer, enum: [1, 2] }
+    Team:
+      type: object
+      required: [referralCode, level1Count, level2Count, totalReferralEarnings, level1, level2]
+      properties:
+        referralCode: { type: string }
+        level1Count: { type: integer }
+        level2Count: { type: integer }
+        totalReferralEarnings: { type: number }
+        level1:
+          type: array
+          items: { $ref: "#/components/schemas/TeamMember" }
+        level2:
+          type: array
+          items: { $ref: "#/components/schemas/TeamMember" }
+    WalletAsset:
+      type: object
+      required: [symbol, name, balance, availableBalance, pendingBalance, priceUsd, change24h]
+      properties:
+        symbol: { type: string }
+        name: { type: string }
+        balance: { type: number }
+        availableBalance: { type: number }
+        pendingBalance: { type: number }
+        priceUsd: { type: number }
+        change24h: { type: number }
+    WalletTransaction:
+      type: object
+      required: [id, type, assetSymbol, amount, status, description, createdAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        username: { type: ["string", "null"] }
+        type: { type: string, enum: [deposit, withdrawal, mining, referral, transfer] }
+        assetSymbol: { type: string }
+        amount: { type: number }
+        status: { type: string, enum: [pending, confirmed, rejected, approved, completed] }
+        description: { type: string }
+        walletAddress: { type: ["string", "null"] }
+        network: { type: ["string", "null"] }
+        transactionHash: { type: ["string", "null"] }
+        adminNote: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: ["string", "null"], format: date-time }
+    Wallet:
+      type: object
+      required: [assets, transactions, availableBalance, pendingBalance]
+      properties:
+        assets:
+          type: array
+          items: { $ref: "#/components/schemas/WalletAsset" }
+        transactions:
+          type: array
+          items: { $ref: "#/components/schemas/WalletTransaction" }
+        availableBalance: { type: number }
+        pendingBalance: { type: number }
+    DepositInput:
+      type: object
+      required: [assetSymbol, amount, idempotencyKey]
+      properties:
+        assetSymbol: { type: string, minLength: 2, maxLength: 12 }
+        amount: { type: number, exclusiveMinimum: 0 }
+        transactionHash: { type: string, maxLength: 160 }
+        idempotencyKey: { type: string, minLength: 12, maxLength: 80 }
+      additionalProperties: false
+    WithdrawalInput:
+      type: object
+      required: [assetSymbol, amount, walletAddress, idempotencyKey]
+      properties:
+        assetSymbol: { type: string, minLength: 2, maxLength: 12 }
+        amount: { type: number, exclusiveMinimum: 0 }
+        walletAddress: { type: string, minLength: 10, maxLength: 160 }
+        network: { type: string, maxLength: 40 }
+        idempotencyKey: { type: string, minLength: 12, maxLength: 80 }
+      additionalProperties: false
+    WalletTransactionPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WalletTransaction" }
+        total: { type: integer }
+    DepositDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [confirmed, rejected] }
+        note: { type: string, maxLength: 500 }
+      additionalProperties: false
+    WithdrawalDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, rejected] }
+        transactionHash: { type: string, maxLength: 160 }
+        note: { type: string, maxLength: 500 }
+      additionalProperties: false
+    AdminOverview:
+      type: object
+      required: [totalUsers, activeUsers, bannedUsers, pendingDeposits, pendingWithdrawals, sharedIpGroups, totalBalance]
+      properties:
+        totalUsers: { type: integer }
+        activeUsers: { type: integer }
+        bannedUsers: { type: integer }
+        pendingDeposits: { type: integer }
+        pendingWithdrawals: { type: integer }
+        sharedIpGroups: { type: integer }
+        totalBalance: { type: number }
+    AdminUser:
+      type: object
+      required: [id, username, role, status, balance, joinedAt, isInitialAdmin]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        role: { type: string, enum: [admin, user] }
+        status: { type: string, enum: [active, banned] }
+        balance: { type: number }
+        joinedAt: { type: string, format: date-time }
+        isInitialAdmin: { type: boolean }
+    AdminUserPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminUser" }
+        total: { type: integer }
+    AdminUserDetail:
+      type: object
+      required: [user, walletBalances, transactions]
+      properties:
+        user: { $ref: "#/components/schemas/AdminUser" }
+        walletBalances:
+          type: array
+          items: { $ref: "#/components/schemas/WalletAsset" }
+        transactions:
+          type: array
+          items: { $ref: "#/components/schemas/WalletTransaction" }
+    AdminUserUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [active, banned] }
+      additionalProperties: false
+    IpCluster:
+      type: object
+      required: [publicIp, accountCount, accounts, firstSeenAt, lastSeenAt]
+      properties:
+        publicIp: { type: string }
+        accountCount: { type: integer }
+        accounts:
+          type: array
+          items: { $ref: "#/components/schemas/AdminUser" }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+    IpClusterPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/IpCluster" }
+    AuditEvent:
+      type: object
+      required: [id, actorUsername, action, target, createdAt]
+      properties:
+        id: { type: string }
+        actorUsername: { type: string }
+        action: { type: string }
+        target: { type: string }
+        details: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    AuditEventPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AuditEvent" }
+        total: { type: integer }
 
