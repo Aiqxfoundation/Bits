@@ -17,6 +17,7 @@ import { z } from "zod/v4";
 
 export const accountRoleEnum = pgEnum("bitgold_account_role", ["admin", "user"]);
 export const accountStatusEnum = pgEnum("bitgold_account_status", ["active", "banned"]);
+export const sessionStatusEnum = pgEnum("bitgold_session_status", ["active", "pending"]);
 export const transactionTypeEnum = pgEnum("bitgold_transaction_type", [
   "deposit",
   "withdrawal",
@@ -36,15 +37,14 @@ export const usersTable = pgTable(
   "bitgold_users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    clerkUserId: text("clerk_user_id").notNull().unique(),
     username: text("username").notNull().unique(),
+    keyHash: text("key_hash").notNull(),
     role: accountRoleEnum("role").notNull().default("user"),
     status: accountStatusEnum("status").notNull().default("active"),
     isInitialAdmin: boolean("is_initial_admin").notNull().default(false),
     displayName: text("display_name"),
     country: text("country"),
     registrationIp: text("registration_ip"),
-    activeSessionId: text("active_session_id"),
     referralCode: text("referral_code").notNull().unique(),
     referrerId: uuid("referrer_id").references(
       (): AnyPgColumn => usersTable.id,
@@ -68,6 +68,22 @@ export const usersTable = pgTable(
     index("bitgold_users_second_referrer_idx").on(table.secondLevelReferrerId),
     index("bitgold_users_registration_ip_idx").on(table.registrationIp),
   ],
+);
+
+export const sessionsTable = pgTable(
+  "bitgold_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    status: sessionStatusEnum("status").notNull().default("active"),
+    publicIp: text("public_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("bitgold_sessions_user_idx").on(table.userId)],
 );
 
 export const walletBalancesTable = pgTable(
@@ -184,6 +200,11 @@ export const insertAuditEventSchema = createInsertSchema(auditEventsTable).omit(
   id: true,
   createdAt: true,
 });
+export const insertSessionSchema = createInsertSchema(sessionsTable).omit({
+  id: true,
+  createdAt: true,
+  lastSeenAt: true,
+});
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
@@ -195,3 +216,5 @@ export type InsertLedgerEntry = z.infer<typeof insertLedgerEntrySchema>;
 export type LedgerEntry = typeof ledgerEntriesTable.$inferSelect;
 export type InsertAuditEvent = z.infer<typeof insertAuditEventSchema>;
 export type AuditEvent = typeof auditEventsTable.$inferSelect;
+export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type Session = typeof sessionsTable.$inferSelect;

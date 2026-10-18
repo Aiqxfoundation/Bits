@@ -28,8 +28,13 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   return <div className="admin-layout">
     <div className="admin-topline"><Link className="inline-link" href="/app"><ChevronLeft size={15} /> Wallet</Link><span className="admin-role-label"><ShieldCheck size={14} /> ADMIN CONSOLE</span></div>
-    <nav className="admin-tabs" aria-label="Admin sections">{adminNav.map((item) => <Link className={`admin-tab ${location === item.href ? 'active' : ''}`} key={item.href} href={item.href} data-testid={`link-admin-${item.label.toLowerCase().replaceAll(' ', '-')}`}><item.icon size={15} /><span>{item.label}</span></Link>)}</nav>
-    {children}
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="eyebrow admin-sidebar-label">MANAGEMENT</div>
+        <nav className="admin-sidebar-nav" aria-label="Admin sections">{adminNav.map((item) => <Link className={`admin-sidebar-link ${location === item.href ? 'active' : ''}`} key={item.href} href={item.href} data-testid={`link-admin-${item.label.toLowerCase().replaceAll(' ', '-')}`}><item.icon size={15} /><span>{item.label}</span></Link>)}</nav>
+      </aside>
+      <div className="admin-body">{children}</div>
+    </div>
   </div>;
 }
 

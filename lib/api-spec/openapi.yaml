@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Username and account-key authentication
   - name: account
     description: Signed-in account and profile
   - name: wallet
@@ -34,27 +36,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-  /account/initialize:
+  /auth/signup:
     post:
-      operationId: initializeAccount
-      tags: [account]
-      summary: Initialize the signed-in user's account
-      description: Creates the application account once; the first account is assigned the initial administrator role atomically.
+      operationId: signUp
+      tags: [auth]
+      summary: Create an account with a generated account key
+      description: Creates the account, its wallet balances, and its first active session. The first account ever created receives the initial administrator role atomically. The generated account key is returned once and stored only as a salted scrypt hash.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/InitializeAccountInput"
+              $ref: "#/components/schemas/AuthSignUpInput"
       responses:
-        "200":
-          description: Existing or newly initialized account
+        "201":
+          description: Account created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/AuthSignUpResult"
+        "400":
+          description: The username is not acceptable
+        "409":
+          description: That username is already taken
+  /auth/login:
+    post:
+      operationId: signIn
+      tags: [auth]
+      summary: Start a session with a username and account key
+      description: Verifies the account key against its stored hash. When the account already has an active device session, the response is a 409 carrying a pending token that must be confirmed through the device switch operation.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthLoginInput"
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResult"
+        "400":
+          description: A username and account key are required
+        "401":
+          description: The username or account key was not accepted
+        "403":
+          description: This account is suspended
+        "409":
+          description: This account is active on another device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthDeviceConflict"
+  /auth/logout:
+    post:
+      operationId: signOut
+      tags: [auth]
+      summary: End the current session
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Session ended
         "401":
           description: Authentication required
+  /auth/key/rotate:
+    post:
+      operationId: rotateAccountKey
+      tags: [auth]
+      summary: Replace the account key
+      description: Verifies the current key, stores only the new salted hash, and ends every other device session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthKeyRotateInput"
+      responses:
+        "200":
+          description: Key rotated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthKeyRotateResult"
+        "400":
+          description: The replacement key is not acceptable
+        "401":
+          description: The current account key was not accepted
         "409":
           description: This account is active on another device
   /account:
@@ -76,6 +150,9 @@ paths:
       operationId: switchAccountDevice
       tags: [account]
       summary: Move the account's active session to this device
+      description: Called with the pending session token returned by a conflicting sign-in. The confirmed session becomes the account's only active session.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Device switched
@@ -460,6 +537,11 @@ paths:
         "403":
           description: Administrator access required
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Session token issued by the sign-up, sign-in, or device-switch operations.
   schemas:
     HealthStatus:
       type: object
@@ -468,13 +550,58 @@ components:
           type: string
       required:
         - status
-    InitializeAccountInput:
+    AuthSignUpInput:
       type: object
+      required: [username]
       properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
         referralCode:
           type: string
           maxLength: 32
       additionalProperties: false
+    AuthLoginInput:
+      type: object
+      required: [username, key]
+      properties:
+        username: { type: string }
+        key: { type: string }
+      additionalProperties: false
+    AuthSignUpResult:
+      type: object
+      required: [token, accountKey, account]
+      properties:
+        token: { type: string }
+        accountKey: { type: string }
+        account: { $ref: "#/components/schemas/Account" }
+    AuthSessionResult:
+      type: object
+      required: [token, account]
+      properties:
+        token: { type: string }
+        account: { $ref: "#/components/schemas/Account" }
+    AuthDeviceConflict:
+      type: object
+      required: [error, code, token, account]
+      properties:
+        error: { type: string }
+        code: { type: string, enum: [DEVICE_SESSION_MISMATCH] }
+        token: { type: string }
+        account: { $ref: "#/components/schemas/Account" }
+    AuthKeyRotateInput:
+      type: object
+      required: [currentKey]
+      properties:
+        currentKey: { type: string }
+        newKey: { type: string, minLength: 16, maxLength: 200 }
+      additionalProperties: false
+    AuthKeyRotateResult:
+      type: object
+      required: [accountKey]
+      properties:
+        accountKey: { type: string }
     ProfileUpdate:
       type: object
       properties:

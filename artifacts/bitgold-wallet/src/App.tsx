@@ -1,13 +1,11 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { ClerkProvider, useAuth, useClerk } from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Brand, InlineNotice, LoadingPanel } from '@/components/common';
+import { AuthProvider, useAuth } from '@/lib/auth';
 import { AdminAuditPage, AdminDepositsPage, AdminOverviewPage, AdminRiskPage, AdminUserDetailPage, AdminUsersPage, AdminWithdrawalsPage } from '@/pages/Admin';
 import { SignInPage, SignUpPage } from '@/pages/Auth';
 import { Goldpaper, Landing, Privacy } from '@/pages/Public';
@@ -20,94 +18,15 @@ const queryClient = new QueryClient({
   },
 });
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-function stripBase(path: string) {
-  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
-}
-
-if (!clerkPubKey) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
-}
-
-const clerkAppearance = {
-  theme: shadcn,
-  cssLayerName: 'clerk',
-  options: {
-    logoPlacement: 'inside' as const,
-    logoLinkUrl: basePath || '/',
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
-  variables: {
-    colorPrimary: '#c7a44a',
-    colorForeground: '#f6f2e8',
-    colorMutedForeground: '#99948a',
-    colorDanger: '#df6d76',
-    colorBackground: '#171411',
-    colorInput: '#100f0d',
-    colorInputForeground: '#f6f2e8',
-    colorNeutral: '#39342d',
-    fontFamily: 'DM Sans, sans-serif',
-    borderRadius: '0.85rem',
-  },
-  elements: {
-    rootBox: 'w-full flex justify-center',
-    cardBox: 'bg-[#171411] rounded-2xl w-[440px] max-w-full overflow-hidden',
-    card: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    footer: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    headerTitle: 'text-[#f6f2e8] font-semibold',
-    headerSubtitle: 'text-[#aaa398]',
-    socialButtonsBlockButtonText: 'text-[#f6f2e8]',
-    formFieldLabel: 'text-[#eee6d5]',
-    footerActionLink: 'text-[#d9b858]',
-    footerActionText: 'text-[#aaa398]',
-    dividerText: 'text-[#aaa398]',
-    identityPreviewEditButton: 'text-[#d9b858]',
-    formFieldSuccessText: 'text-[#76c99a]',
-    alertText: 'text-[#f6f2e8]',
-    logoBox: 'rounded-xl overflow-hidden',
-    logoImage: 'w-10 h-10',
-    socialButtonsBlockButton: 'border-[#39342d] bg-[#1c1915]',
-    formButtonPrimary: 'bg-[#c7a44a] text-[#171411] font-semibold',
-    formFieldInput: 'bg-[#100f0d] text-[#f6f2e8] border-[#39342d]',
-    footerAction: 'text-[#aaa398]',
-    dividerLine: 'bg-[#39342d]',
-    alert: 'bg-[#381c1e] border-[#713a40]',
-    otpCodeFieldInput: 'bg-[#100f0d] text-[#f6f2e8] border-[#39342d]',
-    formFieldRow: 'mb-4',
-    main: 'text-[#f6f2e8]',
-  },
-};
-
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const client = useQueryClient();
-  const previous = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (previous.current !== undefined && previous.current !== userId) client.clear();
-      previous.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, client]);
-  return null;
-}
-
 function HomeRoute() {
-  const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <div className="public-page"><div className="auth-loading"><Brand size={42} /><div className="skeleton" style={{ width: 160, height: 12 }} /></div></div>;
+  const { isSignedIn } = useAuth();
   return isSignedIn ? <Redirect to="/app" /> : <Landing />;
 }
 
 function RequireSignedIn({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) return <LoadingPanel label="Checking secure session" />;
+  const { isSignedIn } = useAuth();
   return isSignedIn ? children : <Redirect to="/sign-in" />;
 }
 
@@ -160,36 +79,16 @@ function Routes() {
   </RoutedErrorBoundary>;
 }
 
-function ClerkProviderWithRoutes() {
-  const [, setLocation] = useLocation();
-  return <ClerkProvider
-    publishableKey={clerkPubKey}
-    proxyUrl={clerkProxyUrl}
-    appearance={clerkAppearance}
-    signInUrl={`${basePath}/sign-in`}
-    signUpUrl={`${basePath}/sign-up`}
-    localization={{
-      signIn: { start: { title: 'Welcome back', subtitle: 'Sign in to your Bitgold account' } },
-      signUp: { start: { title: 'Create your Bitgold account', subtitle: 'Join the BTG mining network' } },
-    }}
-    routerPush={(to) => setLocation(stripBase(to))}
-    routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-  >
-    <QueryClientProvider client={queryClient}>
-      <ClerkQueryClientCacheInvalidator />
-      <Routes />
-    </QueryClientProvider>
-  </ClerkProvider>;
-}
-
 function App() {
   return <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <WouterRouter base={basePath}>
-        <ClerkProviderWithRoutes />
-      </WouterRouter>
-      <Toaster />
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <WouterRouter base={basePath}>
+          <Routes />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>;
 }
 

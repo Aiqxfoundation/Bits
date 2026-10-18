@@ -276,7 +276,7 @@ router.post("/admin/deposits/:depositId/decision", async (req, res): Promise<voi
     return { transaction: updated, username: owner?.username ?? null };
   });
   if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+    res.status(result.status ?? 500).json({ error: result.error });
     return;
   }
   res.json(DecideDepositResponse.parse(transactionDto(result.transaction, result.username)));
@@ -348,7 +348,7 @@ router.post("/admin/withdrawals/:withdrawalId/decision", async (req, res): Promi
     return { transaction: updated, username: owner?.username ?? null };
   });
   if ("error" in result) {
-    res.status(result.status).json({ error: result.error });
+    res.status(result.status ?? 500).json({ error: result.error });
     return;
   }
   res.json(DecideWithdrawalResponse.parse(transactionDto(result.transaction, result.username)));
