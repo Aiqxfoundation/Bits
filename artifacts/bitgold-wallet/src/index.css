@@ -688,3 +688,64 @@ tbody tr:last-child td { border-bottom:0; }
   .admin-sidebar-link { white-space:nowrap; border-radius:0; border-bottom:2px solid transparent; }
   .admin-sidebar-link.active { background:transparent; border-color:hsl(var(--gold)); }
 }
+
+/* Signed-in sheets and ported Bitgold screens */
+.sheet-backdrop { position:fixed; z-index:60; inset:0; background:rgba(8,7,5,.7); display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(7px); }
+.sheet-card { width:min(100%,520px); max-height:88dvh; overflow:auto; border:1px solid hsl(var(--border)); border-bottom:0; border-radius:24px 24px 0 0; background:linear-gradient(160deg,hsl(30 8% 9%),hsl(30 8% 6%)); padding:14px 18px calc(22px + env(safe-area-inset-bottom)); box-shadow:0 -18px 60px rgba(0,0,0,.5); animation:sheet-rise .28s cubic-bezier(.22,1,.36,1); }
+@keyframes sheet-rise { from { transform:translateY(22px); opacity:.4 } to { transform:translateY(0); opacity:1 } }
+.sheet-grip { display:block; width:38px; height:3px; border-radius:99px; background:hsl(var(--border)); margin:0 auto 14px; }
+.sheet-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.sheet-head h2 { margin:0; font-size:19px; letter-spacing:-.035em; }
+.sheet-head p { margin:6px 0 0; font-size:11px; line-height:1.55; }
+.sheet-stack { display:flex; flex-direction:column; gap:10px; }
+.sheet-row { display:flex; gap:12px; align-items:center; border:1px solid hsl(var(--border)); border-radius:16px; background:hsl(var(--secondary)/.5); padding:13px; }
+.sheet-row-icon { width:37px; height:37px; flex:none; display:grid; place-items:center; border-radius:11px; color:hsl(var(--gold)); background:hsl(var(--gold)/.11); }
+.sheet-row-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.sheet-row-main>span { color:hsl(var(--muted-foreground)); font-size:10px; }
+.sheet-row-main strong { font-size:16px; color:hsl(var(--gold-bright)); }
+.sheet-row-main small { color:hsl(var(--muted-foreground)); font-size:9px; }
+.sheet-note { font-size:11px; line-height:1.6; margin:4px 0 0; }
+.step-row { display:flex; gap:11px; align-items:flex-start; border:1px solid hsl(var(--border)); border-radius:16px; background:hsl(var(--secondary)/.5); padding:13px; }
+.step-row p { margin:0; font-size:12px; line-height:1.65; }
+.step-row b { color:hsl(var(--foreground)); }
+.step-row i { color:hsl(var(--gold)); font-style:normal; font-weight:700; }
+.step-index { width:23px; height:23px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:700; color:hsl(var(--gold)); background:hsl(var(--gold)/.14); }
+.receive-tiles { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.receive-tile { border:1px solid hsl(var(--border)); border-radius:16px; background:hsl(var(--secondary)/.45); padding:13px; display:flex; flex-direction:column; gap:6px; }
+.receive-tile svg { color:hsl(var(--muted-foreground)); }
+.receive-tile.gold { border-color:hsl(var(--gold)/.24); background:linear-gradient(150deg,hsl(var(--gold)/.09),transparent); }
+.receive-tile.gold svg { color:hsl(var(--gold)); }
+.receive-tile.green { border-color:rgba(69,177,118,.25); background:linear-gradient(150deg,rgba(60,170,110,.08),transparent); }
+.receive-tile.green svg { color:#7ed2a0; }
+.receive-tile strong { font-size:12px; }
+.receive-tile small { color:hsl(var(--muted-foreground)); font-size:9px; line-height:1.5; }
+.sheet-copy-row { display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid hsl(var(--border)); border-radius:16px; background:hsl(var(--secondary)/.5); padding:12px 13px; }
+.sheet-copy-row>div { min-width:0; display:flex; flex-direction:column; gap:5px; }
+.sheet-copy-row strong { font-size:11px; color:hsl(var(--gold-bright)); overflow-wrap:anywhere; }
+.sheet-copy-row.balance strong { font-size:17px; }
+.transfer-art { width:52px; height:52px; border-radius:16px; display:grid; place-items:center; color:hsl(var(--gold)); background:hsl(var(--gold)/.12); border:1px solid hsl(var(--gold)/.2); margin:2px auto 4px; }
+.rig-card { padding:17px 17px 14px; }
+.rig-top { display:flex; align-items:center; gap:13px; }
+.rig-main { flex:1; min-width:0; }
+.rig-amount { font-size:21px; font-weight:700; margin-top:6px; color:hsl(var(--gold-bright)); }
+.rig-amount span { color:hsl(var(--muted-foreground)); font-size:10px; font-weight:400; }
+.rig-main small { display:block; margin-top:5px; font-size:9px; }
+.rig-hash { text-align:right; flex:none; }
+.rig-hash .mono { margin-top:6px; font-size:13px; font-weight:700; }
+.rig-hash span { color:hsl(var(--muted-foreground)); font-size:9px; margin-left:2px; }
+.rig-progress { height:3px; border-radius:3px; background:hsl(var(--border)); overflow:hidden; margin:15px 0 11px; }
+.rig-progress span { display:block; height:100%; background:linear-gradient(90deg,hsl(var(--gold)),hsl(var(--gold-bright))); transition:width .8s linear; }
+.rig-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:10px; color:hsl(var(--muted-foreground)); }
+.rig-status { display:inline-flex; align-items:center; gap:7px; }
+.rig-status .status-dot { box-shadow:none; background:hsl(var(--gold)/.6); }
+.rig-status.ready .status-dot { background:#70c88d; }
+.rig-next b { color:hsl(var(--foreground)); margin-left:4px; }
+.metrics-row article.metric-link button { display:block; width:100%; padding:0; background:transparent; border:0; color:inherit; text-align:left; cursor:pointer; }
+.metric-link em { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-style:normal; font-size:9px; color:hsl(var(--gold)); }
+.wallet-actions.secondary { margin-top:8px; }
+.asset-detail-hero .brand-mark,.asset-detail-hero .token-badge { margin-bottom:13px; }
+.token-badge.btc { color:#f7931a; border-color:rgba(247,147,26,.32); background:radial-gradient(circle at 35% 28%,rgba(247,147,26,.2),hsl(30 8% 10%) 72%); }
+.token-badge.usdt { color:#3ec49a; border-color:rgba(38,161,123,.32); background:radial-gradient(circle at 35% 28%,rgba(38,161,123,.2),hsl(30 8% 10%) 72%); }
+@media (max-width:760px) {
+  .receive-tiles { grid-template-columns:1fr; }
+}

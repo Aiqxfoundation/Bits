@@ -4,7 +4,7 @@ import { Link, useLocation, useParams } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowDownLeft, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, Check, ChevronRight, Copy,
+  ArrowDownLeft, ArrowDownToLine, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUpFromLine, BarChart3, Check, ChevronRight, Copy,
   Eye, EyeOff, FileClock, Fingerprint, Gift, KeyRound, LayoutDashboard, LogOut, Pickaxe, Settings2, ShieldCheck, Share2, TrendingUp, Users, Wallet as WalletIcon, Zap,
 } from 'lucide-react';
 import {
@@ -14,6 +14,12 @@ import {
 } from '@workspace/api-client-react';
 import type { WalletAsset, WalletTransaction } from '@workspace/api-client-react';
 import { Brand, EmptyPanel, ErrorPanel, InlineNotice, LoadingPanel, Modal, PageHeading, apiErrorMessage, formatAmount, formatDate } from '@/components/common';
+import { MiningRigCard } from '@/components/gold/mining-rig-card';
+import { NetworkStatsSheet } from '@/components/gold/network-stats-sheet';
+import { ReceiveSheet } from '@/components/gold/receive-sheet';
+import { ReferralRewardsSheet } from '@/components/gold/referral-rewards-sheet';
+import { TokenMark } from '@/components/gold/token-mark';
+import { TransferSheet } from '@/components/gold/transfer-sheet';
 
 const adminNav = [
   { href: '/app/admin', label: 'Overview', icon: LayoutDashboard },
@@ -74,6 +80,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
 export function DashboardPage() {
   const [now, setNow] = useState(Date.now());
+  const [statsOpen, setStatsOpen] = useState(false);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -98,6 +105,7 @@ export function DashboardPage() {
   const ready = !lastClaim || now >= nextClaim;
   const seconds = Math.max(0, Math.floor((nextClaim - now) / 1000));
   const time = [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60];
+  const countdownLabel = time.map((value) => String(value).padStart(2, '0')).join(':');
   return <div className="screen-stack">
     <PageHeading eyebrow="YOUR DAILY RHYTHM" title="Mining" description={`Welcome back, ${data.account.displayName || data.account.username}.`} aside={<span className="status active"><span className="status-dot" /> Account active</span>} />
     <section className="mining-stage panel">
@@ -106,6 +114,7 @@ export function DashboardPage() {
       <div className="stage-balance"><div className="eyebrow">AVAILABLE BALANCE</div><div className="balance-large">{formatAmount(data.account.availableBalance)} <span>BTG</span></div><div className="stage-sub">+ {formatAmount(data.account.pendingBalance)} pending</div></div>
       <div className="stage-foot"><div><Zap size={15} /><span><b>{formatAmount(data.account.hashPower, 0)}</b> hash power</span></div><div><TrendingUp size={15} /><span><b>{data.account.streak}</b> day streak</span></div><div><Gift size={15} /><span><b>{data.account.totalClaims}</b> total claims</span></div></div>
     </section>
+    <MiningRigCard totalMined={data.account.totalMined} hashPower={data.account.hashPower} progress={ready ? 100 : ((now - lastClaim) / 86_400_000) * 100} ready={ready} countdown={countdownLabel} />
     <div className="claim-area">
       {ready ? <button className="button gold claim-button" disabled={claim.isPending} onClick={() => claim.mutate()} data-testid="button-claim-mining">
         <Pickaxe size={19} /> {claim.isPending ? 'Claiming reward…' : 'Claim your BTG'}
@@ -118,17 +127,19 @@ export function DashboardPage() {
     <section className="metrics-row">
       <article><span className="eyebrow">TOTAL MINED</span><strong>{formatAmount(data.account.totalMined, 3)} <i>BTG</i></strong></article>
       <article><span className="eyebrow">REFERRAL EARNINGS</span><strong>{formatAmount(data.account.totalReferralEarnings, 3)} <i>BTG</i></strong></article>
-      <article><span className="eyebrow">NETWORK MEMBERS</span><strong>{platform.data?.totalUsers.toLocaleString() ?? '—'} <i>miners</i></strong></article>
+      <article className="metric-link"><button onClick={() => setStatsOpen(true)} aria-label="Open network statistics" data-testid="button-open-network-stats"><span className="eyebrow">NETWORK MEMBERS</span><strong>{platform.data?.totalUsers.toLocaleString() ?? '—'} <i>miners</i></strong><em><BarChart3 size={11} /> Statistics</em></button></article>
     </section>
     <section className="transaction-section"><div className="section-row-head"><div><div className="eyebrow">ACCOUNT HISTORY</div><h2>Recent activity</h2></div><Link href="/app/wallet" className="inline-link">Wallet <ArrowRight size={14} /></Link></div>
       <TransactionList transactions={data.recentTransactions.slice(0, 5)} />
     </section>
+    <NetworkStatsSheet open={statsOpen} onClose={() => setStatsOpen(false)} stats={platform.data} />
   </div>;
 }
 
 export function TeamPage() {
   const teamQuery = useGetTeam({ query: { queryKey: getGetTeamQueryKey() } });
   const [copied, setCopied] = useState(false);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const data = teamQuery.data;
   const link = `${window.location.origin}/?ref=${data?.referralCode ?? ''}`;
   const copy = async () => { await navigator.clipboard.writeText(link); setCopied(true); window.setTimeout(() => setCopied(false), 1700); };
@@ -140,7 +151,7 @@ export function TeamPage() {
   if (teamQuery.isError || !data) return <ErrorPanel message="Your referral network is temporarily unavailable." onRetry={() => teamQuery.refetch()} />;
   return <div className="screen-stack">
     <PageHeading eyebrow="GROW YOUR NETWORK" title="Team" description="A two-level referral network, with rewards tied to participation." />
-    <section className="referral-link-panel panel"><div><div className="eyebrow">YOUR INVITE LINK</div><div className="invite-code">{data.referralCode}</div><span className="muted invite-url">{link}</span></div><div className="invite-actions"><button className="button gold" onClick={copy} data-testid="button-copy-referral">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copied' : 'Copy link'}</button><button className="button" onClick={share} data-testid="button-share-referral"><Share2 size={15} />Share</button></div></section>
+    <section className="referral-link-panel panel"><div><div className="eyebrow">YOUR INVITE LINK</div><div className="invite-code">{data.referralCode}</div><span className="muted invite-url">{link}</span></div><div className="invite-actions"><button className="button gold" onClick={copy} data-testid="button-copy-referral">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copied' : 'Copy link'}</button><button className="button" onClick={share} data-testid="button-share-referral"><Share2 size={15} />Share</button><button className="button ghost" onClick={() => setRewardsOpen(true)} data-testid="button-referral-rewards"><Gift size={15} />How rewards work</button></div></section>
     <section className="team-earnings panel"><div><div className="eyebrow">TOTAL REFERRAL EARNINGS</div><strong>{formatAmount(data.totalReferralEarnings, 4)} <i>BTG</i></strong></div><div className="earnings-mark"><Gift size={21} /></div></section>
     <div className="team-levels"><section className="level-card panel"><div className="level-icon"><Users size={18} /></div><div className="eyebrow">LEVEL 1 · DIRECT</div><strong>{data.level1Count}</strong><p>People invited by you</p><span className="status">10% earning rate</span></section><section className="level-card panel"><div className="level-icon second"><TrendingUp size={18} /></div><div className="eyebrow">LEVEL 2 · INDIRECT</div><strong>{data.level2Count}</strong><p>Your team's referrals</p><span className="status">5% earning rate</span></section></div>
     <section><div className="section-row-head"><div><div className="eyebrow">YOUR REFERRALS</div><h2>Level one members</h2></div><span className="status">{data.level1Count} members</span></div>
@@ -149,12 +160,15 @@ export function TeamPage() {
     <section><div className="section-row-head"><div><div className="eyebrow">SECOND LEVEL</div><h2>Extended network</h2></div><span className="status">{data.level2Count} members</span></div>
       {data.level2.length === 0 ? <div className="quiet-empty">Your extended network will appear here as your referrals invite new members.</div> : <div className="member-list panel">{data.level2.map((member) => <div key={`${member.username}-${member.joinedAt}`} className="member-row"><AccountInitial name={member.username} /><div className="member-main"><strong>{member.username}</strong><span>Joined {formatDate(member.joinedAt)}</span></div><div className="member-earned"><strong>+{formatAmount(member.totalEarned)} BTG</strong><span>Referral earnings</span></div></div>)}</div>}
     </section>
+    <ReferralRewardsSheet open={rewardsOpen} onClose={() => setRewardsOpen(false)} />
   </div>;
 }
 
 export function WalletPage() {
   const walletQuery = useGetWallet({ query: { queryKey: getGetWalletQueryKey() } });
+  const accountQuery = useGetAccount({ query: { queryKey: getGetAccountQueryKey(), staleTime: 20_000 } });
   const [action, setAction] = useState<'deposit' | 'withdraw' | null>(null);
+  const [panel, setPanel] = useState<'receive' | 'transfer' | null>(null);
   const [symbol, setSymbol] = useState('BTG');
   const [balanceHidden, setBalanceHidden] = useState(false);
   if (walletQuery.isLoading) return <LoadingPanel label="Loading wallet" />;
@@ -167,12 +181,15 @@ export function WalletPage() {
       <div className="wallet-total">{balanceHidden ? '••••••' : formatAmount(wallet.availableBalance, 4)} <span>BTG</span></div>
       <div className="wallet-pending">{balanceHidden ? '••••' : formatAmount(wallet.pendingBalance, 4)} BTG pending review</div>
       <div className="wallet-actions"><button className="button gold" onClick={() => { setAction('deposit'); setSymbol('BTG'); }} data-testid="button-wallet-deposit"><ArrowDownToLine size={16} />Request deposit</button><button className="button" onClick={() => { setAction('withdraw'); setSymbol('BTG'); }} data-testid="button-wallet-withdraw"><ArrowUpFromLine size={16} />Request withdrawal</button></div>
+      <div className="wallet-actions secondary"><button className="button" onClick={() => setPanel('receive')} data-testid="button-wallet-receive"><ArrowDownLeft size={16} />Receive</button><button className="button" onClick={() => setPanel('transfer')} data-testid="button-wallet-transfer"><ArrowLeftRight size={16} />Transfer</button></div>
     </section>
     <InlineNotice>BTG is an internal token balance, not a live-chain wallet. Deposit and withdrawal requests are pending until administrator review.</InlineNotice>
     <section><div className="section-row-head"><div><div className="eyebrow">YOUR ASSETS</div><h2>Asset balances</h2></div></div>
       {symbols.length === 0 ? <EmptyPanel title="No assets are available" detail="Asset balances will appear here when returned by your account ledger." /> : <div className="asset-list panel">{symbols.map((asset) => <AssetRow key={asset.symbol} asset={asset} hidden={balanceHidden} onDeposit={() => { setSymbol(asset.symbol); setAction('deposit'); }} onWithdraw={() => { setSymbol(asset.symbol); setAction('withdraw'); }} />)}</div>}
     </section>
     <section><div className="section-row-head"><div><div className="eyebrow">RECENT LEDGER</div><h2>Transactions</h2></div></div><TransactionList transactions={wallet.transactions} /></section>
+    <ReceiveSheet open={panel === 'receive'} onClose={() => setPanel(null)} referralCode={accountQuery.data?.referralCode} />
+    <TransferSheet open={panel === 'transfer'} onClose={() => setPanel(null)} available={wallet.availableBalance} />
     <WalletActionModal open={action !== null} action={action} symbol={symbol} onClose={() => setAction(null)} available={wallet.assets.find((asset) => asset.symbol === symbol)?.availableBalance ?? wallet.availableBalance} />
   </div>;
 }
@@ -189,7 +206,7 @@ export function AssetDetailPage() {
   const isBitgold = asset.symbol.toUpperCase() === 'BTG';
   const txs = walletQuery.data?.transactions.filter((tx) => tx.assetSymbol.toUpperCase() === symbol) ?? [];
   return <div className="screen-stack"><Link href="/app/wallet" className="inline-link"><ArrowLeft size={15} /> Wallet</Link>
-    <section className="asset-detail-hero panel"><div className="token-badge token-badge-large">{symbol.slice(0, 1)}</div><div className="eyebrow">{asset.symbol}</div><h1>{asset.name}</h1><strong>{formatAmount(asset.balance)} <i>{asset.symbol}</i></strong><p>{formatAmount(asset.pendingBalance)} pending review</p>{!isBitgold && <span className="status">Display only</span>}</section>
+    <section className="asset-detail-hero panel"><TokenMark symbol={symbol} large /><div className="eyebrow">{asset.symbol}</div><h1>{asset.name}</h1><strong>{formatAmount(asset.balance)} <i>{asset.symbol}</i></strong><p>{formatAmount(asset.pendingBalance)} pending review</p>{!isBitgold && <span className="status">Display only</span>}</section>
     {isBitgold ? <div className="wallet-actions detail-actions"><button className="button gold" onClick={() => setAction('deposit')} data-testid="button-asset-deposit"><ArrowDownToLine size={15} />Request deposit</button><button className="button" onClick={() => setAction('withdraw')} data-testid="button-asset-withdraw"><ArrowUpFromLine size={15} />Request withdrawal</button></div> : <InlineNotice tone="gold">{asset.symbol} is display-only. Wallet actions are available for BTG.</InlineNotice>}
     <section><div className="section-row-head"><div><div className="eyebrow">ASSET LEDGER</div><h2>Transactions</h2></div></div><TransactionList transactions={txs} /></section>
     <WalletActionModal open={action !== null} action={action} symbol={asset.symbol} onClose={() => setAction(null)} available={asset.availableBalance} />
@@ -197,7 +214,7 @@ export function AssetDetailPage() {
 }
 
 function AssetRow({ asset, hidden, onDeposit, onWithdraw }: { asset: WalletAsset; hidden: boolean; onDeposit: () => void; onWithdraw: () => void }) {
-  return <div className="asset-row"><Link href={`/app/wallet/${asset.symbol.toLowerCase()}`} className="asset-main-link"><div className="token-badge">{asset.symbol.slice(0, 1)}</div><div className="asset-name"><strong>{asset.name}</strong><span>{asset.symbol} <i className={asset.change24h >= 0 ? 'gain' : 'loss'}>{asset.change24h >= 0 ? '+' : ''}{asset.change24h.toFixed(2)}%</i></span></div><div className="asset-balance">{hidden ? '••••••' : formatAmount(asset.balance)}<small>{asset.symbol}</small></div><ChevronRight size={16} className="muted" /></Link>
+  return <div className="asset-row"><Link href={`/app/wallet/${asset.symbol.toLowerCase()}`} className="asset-main-link"><TokenMark symbol={asset.symbol} /><div className="asset-name"><strong>{asset.name}</strong><span>{asset.symbol} <i className={asset.change24h >= 0 ? 'gain' : 'loss'}>{asset.change24h >= 0 ? '+' : ''}{asset.change24h.toFixed(2)}%</i></span></div><div className="asset-balance">{hidden ? '••••••' : formatAmount(asset.balance)}<small>{asset.symbol}</small></div><ChevronRight size={16} className="muted" /></Link>
     <div className="asset-mini-actions"><button onClick={onDeposit} aria-label={`Request ${asset.symbol} deposit`} data-testid={`button-deposit-${asset.symbol.toLowerCase()}`}><ArrowDownToLine size={13} /></button><button onClick={onWithdraw} aria-label={`Request ${asset.symbol} withdrawal`} data-testid={`button-withdraw-${asset.symbol.toLowerCase()}`}><ArrowUpFromLine size={13} /></button></div>
   </div>;
 }
